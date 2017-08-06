@@ -1,0 +1,4 @@
+alpha_1 = 0.980338
+threshhold_1 = 0.55
+alpha_2 = 3.26883
+threshhold_2 = 1.43
