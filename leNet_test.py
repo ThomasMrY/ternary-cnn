@@ -58,24 +58,49 @@ def add_full_layer(input_x,layer_numble,node_num,alpha = 1,activation_function =
 		# threshhold += t
 	# return threshhold_max
 def comput_threshold(input_d,steps):
-	threshhold = tf.constant(0.01)
+	threshhold_1 = tf.constant(0.01)
+	threshhold_2 = tf.constant(0.01)
 	f_max = tf.constant(0.01)
-	threshhold_max = tf.constant(0.01)
-	for i in range(steps):
-		output = tf.where(tf.greater(input_d,threshhold),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
-		alpha_temp = tf.where(tf.greater(input_d,threshhold),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
-		threshhold += 2/steps
-		f_max_new = tf.square(tf.reduce_sum(alpha_temp))/tf.reduce_sum(output)
-		threshhold_max = tf.where(tf.greater(f_max_new,f_max),threshhold,threshhold_max)
-		f_max = tf.where(tf.greater(f_max_new,f_max),f_max_new,f_max)
-	return threshhold_max
+	threshhold_1_max = tf.constant(0.01)
+	threshhold_2_max = tf.constant(0.01)
+	for j in range(steps):
+		threshhold_2 = tf.constant(0.01)
+		for i in range(steps):
+			output_temp_1 = tf.where(tf.greater(input_d,threshhold_1),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+			input_2 = tf.where(tf.greater(input_d,threshhold_1),tf.zeros_like(input_d,tf.float32),input_d)
+			alpha_1_temp = tf.where(tf.greater(input_d,threshhold_1),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+			alpha_input = tf.where(tf.greater(input_d,threshhold_1),tf.zeros_like(input_d,tf.float32),input_d)
+			output_temp_2 = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+			alpha_2_temp = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+			output_temp = tf.add(output_temp_1,0.5*output_temp_2)
+			alpha_temp = (tf.reduce_sum(alpha_1_temp)+tf.reduce_sum(alpha_2_temp))
+			f_max_new = tf.square(alpha_temp)/tf.reduce_sum(output_temp)
+			threshhold_1_max = tf.where(tf.greater(f_max_new,f_max),threshhold_1,threshhold_1_max)
+			threshhold_2_max = tf.where(tf.greater(f_max_new,f_max),threshhold_2,threshhold_2_max)
+			f_max = tf.where(tf.greater(f_max_new,f_max),f_max_new,f_max)
+			threshhold_2 += threshhold_1/steps
+		threshhold_1 += 2/steps
+	return threshhold_1_max,threshhold_2_max
 
-def add_2_binary(input_d,steps):
-	threshhold = comput_threshold(input_d,steps)
-	output = tf.where(tf.greater(input_d,threshhold),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
-	alpha_temp = tf.where(tf.greater(input_d,threshhold),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
-	alpha = tf.reduce_sum(alpha_temp)/tf.reduce_sum(output)
-	return output,alpha,threshhold
+def add_tenery(input_d,steps):
+	threshhold_1,threshhold_2 = comput_threshold(input_d,steps)
+	output_temp_1 = tf.where(tf.greater(input_d,threshhold_1),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+	alpha_1_temp = tf.where(tf.greater(input_d,threshhold_1),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+	input_2 = tf.where(tf.greater(input_d,threshhold_1),tf.zeros_like(input_d,tf.float32),input_d)
+	output_temp_2 = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+	alpha_2_temp = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+	alpha_temp = (tf.reduce_sum(alpha_1_temp)+tf.reduce_sum(alpha_2_temp))
+	output_temp = tf.add(output_temp_1,0.5*output_temp_2)
+	output = tf.add(output_temp_1,output_temp_2)
+	alpha = alpha_temp/tf.reduce_sum(output_temp)
+	return output,alpha,threshhold_1,threshhold_2
+
+def add_tenery_op(input_d,threshhold_1,threshhold_2):
+	output_temp_1 = tf.where(tf.greater(input_d,threshhold_1),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+	input_2 = tf.where(tf.greater(input_d,threshhold_1),tf.zeros_like(input_d,tf.float32),input_d)
+	output_temp_2 = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+	output = tf.add(output_temp_1,output_temp_2)
+	return output
 
 def add_2_binary_op(input_d,threshhold):
 	output = tf.where(tf.greater(input_d,threshhold),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
@@ -131,16 +156,18 @@ with tf.device('/cpu:0'):
 	layer1 = add_cov_layer(input_x,1,[5,5,1,10],activation_function = tf.nn.relu)
 	layer2 = add_max_pool(layer1,2,[1,2,2,1])
 	layer3 = stack2line(layer2,3)
-	alpha_1 = 0.98
-	threshhold_1 = 0.61
-	layer3_b = add_2_binary_op(layer3,threshhold_1)
-	#layer3_b,alpha_1,threshhold_1 = add_2_binary(layer3,100)
+	alpha_1 = 1.22
+	threshhold_1_1 = 0.91
+	threshhold_1_2 = 0.284
+	layer3_b = add_tenery_op(layer3,threshhold_1_1,threshhold_1_2)
+	#layer3_b,alpha_1,threshhold_1_1,threshhold_1_2 = add_tenery(layer3,20)
 	layer4 = add_full_layer(layer3_b,4,400,alpha_1,activation_function = tf.nn.relu)
 	layer4_drop = tf.nn.dropout(layer4,keep_prob)
-	alpha_2 = 3.3
-	threshhold_2 = 1.63
-	layer4_b = add_2_binary_op(layer4_drop,threshhold_2)
-	# layer4_b,alpha_2,threshhold_2 = add_2_binary(layer4_drop,100)
+	alpha_2 = 3.32
+	threshhold_2_1 = 1.91
+	threshhold_2_2 = 0.8694
+	layer4_b = add_tenery_op(layer4_drop,threshhold_2_1,threshhold_2_2)
+	#layer4_b,alpha_2,threshhold_2_1,threshhold_2_2 = add_tenery(layer4_drop,20)
 	layer5 = add_full_layer(layer4_b,5,60,alpha_2,activation_function = tf.nn.relu)
 	layer5_drop = tf.nn.dropout(layer5,keep_prob)
 	y = add_full_layer(layer5_drop,6,10,activation_function =tf.nn.softmax)
@@ -157,11 +184,11 @@ with tf.device('/cpu:0'):
 
 save=tf.train.Saver()
 
-with tf.Session(config = tf.ConfigProto(log_device_placement = True)) as sess:
-	init = tf.global_variables_initializer()
-	sess.run(init)
-	save.restore(sess,'net_data/le_net/cnn_theta.ckpt')
-	accuracy_test_train = sess.run(accuracy,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
+# with tf.Session(config = tf.ConfigProto(log_device_placement = True)) as sess:
+	# init = tf.global_variables_initializer()
+	# sess.run(init)
+	# save.restore(sess,'net_data/le_net/cnn_theta.ckpt')
+	# accuracy_test_train = sess.run(accuracy,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
 	# threshhold_layer1_train = sess.run(threshhold_1,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
 	# alpha_layer1_train = sess.run(alpha_1,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
 	# threshhold_layer2_train = sess.run(threshhold_2,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
@@ -169,16 +196,18 @@ with tf.Session(config = tf.ConfigProto(log_device_placement = True)) as sess:
 with tf.Session(config = tf.ConfigProto(log_device_placement = True)) as sess:
 	init = tf.global_variables_initializer()
 	sess.run(init)
-	save.restore(sess,'net_data/le_net_9881/cnn_theta.ckpt')
+	save.restore(sess,'net_data/le_net_t9721/cnn_theta.ckpt')
 	accuracy_test_original = sess.run(accuracy,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
-	# threshhold_layer1 = sess.run(threshhold_1,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
+	# threshhold_layer1_1 = sess.run(threshhold_1_1,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
+	# threshhold_layer1_2 = sess.run(threshhold_1_2,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
 	# alpha_layer1 = sess.run(alpha_1,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
-	# threshhold_layer2 = sess.run(threshhold_2,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
+	# threshhold_layer2_1 = sess.run(threshhold_2_1,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
+	# threshhold_layer2_2 = sess.run(threshhold_2_2,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
 	# alpha_layer2 = sess.run(alpha_2,feed_dict = {x:mnist.test.images,y_:mnist.test.labels,keep_prob:1.0})
-	print('the original accuracy on test data is %g'%(accuracy_test_original))
-	# print('the threshhold_1 is %g , the alpha_1 is %g'%(threshhold_layer1,alpha_layer1))
-	# print('the threshhold_2 is %g , the alpha_2 is %g'%(threshhold_layer2,alpha_layer2))
-	print('the train accuracy on test data is %g'%(accuracy_test_train))
-	# print('the threshhold_1 is %g , the alpha_1 is %g'%(threshhold_layer1_train,alpha_layer1_train))
+	# print('the threshhold_1_1 is %g , the threshhold_1_2 is %g'%(threshhold_layer1_1,threshhold_layer1_2))
+	# print('the alpha_1 is %g'%(alpha_layer1))
+	# print('the threshhold_2_1 is %g , the the threshhold_2_2 is %g'%(threshhold_layer2_1,threshhold_layer2_2))
+	# print('the alpha_2 is %g'%(alpha_layer2))
+	print('the train accuracy on test data is %g'%(accuracy_test_original))
 	# print('the threshhold_2 is %g , the alpha_2 is %g'%(threshhold_layer2_train,alpha_layer2_train))
 	

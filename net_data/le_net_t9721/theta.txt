@@ -1,0 +1,6 @@
+the threshhold_1_1 is 0.91 , the threshhold_1_2 is 0.283
+the alpha_1 is 1.22312
+the threshhold_2_1 is 1.91 , the the threshhold_2_2 is 0.8695
+the alpha_2 is 3.32624
+the train accuracy on test data is 0.9721
+

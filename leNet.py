@@ -4,7 +4,7 @@ import numpy as np
 from tensorflow.examples.tutorials.mnist import input_data
 
 mnist = input_data.read_data_sets("MNIST_data/", one_hot=True)
-batch_size = 7000
+batch_size = 2300
 Train_steps = 10000
 def add_full_layer(input_x,layer_numble,node_num,alpha = 1,activation_function = None):
 	layer_name = 'full_connected_layer%s' %layer_numble
@@ -58,23 +58,40 @@ def add_full_layer(input_x,layer_numble,node_num,alpha = 1,activation_function =
 		# threshhold += t
 	# return threshhold_max
 def comput_threshold(input_d,steps):
-	threshhold = tf.constant(0.01)
+	threshhold_1 = tf.constant(0.01)
+	threshhold_2 = tf.constant(0.01)
 	f_max = tf.constant(0.01)
-	threshhold_max = tf.constant(0.01)
-	for i in range(steps):
-		output = tf.where(tf.greater(input_d,threshhold),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
-		alpha_temp = tf.where(tf.greater(input_d,threshhold),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
-		threshhold += 2/steps
-		f_max_new = tf.square(tf.reduce_sum(alpha_temp))/tf.reduce_sum(output)
-		threshhold_max = tf.where(tf.greater(f_max_new,f_max),threshhold,threshhold_max)
-		f_max = tf.where(tf.greater(f_max_new,f_max),f_max_new,f_max)
-	return threshhold_max
+	threshhold_1_max = tf.constant(0.01)
+	threshhold_2_max = tf.constant(0.01)
+	for j in range(steps):
+		threshhold_2 = tf.constant(0.01)
+		for i in range(steps):
+			output_temp_1 = tf.where(tf.greater(input_d,threshhold_1),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+			input_2 = tf.where(tf.greater(input_d,threshhold_1),tf.zeros_like(input_d,tf.float32),input_d)
+			alpha_1_temp = tf.where(tf.greater(input_d,threshhold_1),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+			output_temp_2 = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+			alpha_2_temp = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+			output_temp = tf.add(output_temp_1,0.5*output_temp_2)
+			alpha_temp = (tf.reduce_sum(alpha_1_temp)+tf.reduce_sum(alpha_2_temp))
+			f_max_new = tf.square(alpha_temp)/tf.reduce_sum(output_temp)
+			threshhold_1_max = tf.where(tf.greater(f_max_new,f_max),threshhold_1,threshhold_1_max)
+			threshhold_2_max = tf.where(tf.greater(f_max_new,f_max),threshhold_2,threshhold_2_max)
+			f_max = tf.where(tf.greater(f_max_new,f_max),f_max_new,f_max)
+			threshhold_2 += threshhold_1/steps
+		threshhold_1 += 2/steps
+	return threshhold_1_max,threshhold_2_max
 
-def add_2_binary(input_d,steps):
-	threshhold = comput_threshold(input_d,steps)
-	output = tf.where(tf.greater(input_d,threshhold),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
-	alpha_temp = tf.where(tf.greater(input_d,threshhold),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
-	alpha = tf.reduce_sum(alpha_temp)/tf.reduce_sum(output)
+def add_tenery(input_d,steps):
+	threshhold_1,threshhold_2 = comput_threshold(input_d,steps)
+	output_temp_1 = tf.where(tf.greater(input_d,threshhold_1),tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+	alpha_1_temp = tf.where(tf.greater(input_d,threshhold_1),tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+	input_2 = tf.where(tf.greater(input_d,threshhold_1),tf.zeros_like(input_d,tf.float32),input_d)
+	output_temp_2 = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.ones_like(input_d,tf.float32),tf.zeros_like(input_d,tf.float32))
+	alpha_2_temp = tf.where(tf.greater(input_2,threshhold_2),0.5*tf.abs(input_d),tf.zeros_like(input_d,tf.float32))
+	alpha_temp = (tf.reduce_sum(alpha_1_temp)+tf.reduce_sum(alpha_2_temp))
+	output_temp = tf.add(output_temp_1,0.5*output_temp_2)
+	output = tf.add(output_temp_1,output_temp_2)
+	alpha = alpha_temp/tf.reduce_sum(output_temp)
 	return output,alpha
 
 def add_2_binary_op(input_d,threshhold):
@@ -130,17 +147,17 @@ input_x = add_2_binary_op(x_imgs,0.5)
 layer1 = add_cov_layer(input_x,1,[5,5,1,10],activation_function = tf.nn.relu)
 layer2 = add_max_pool(layer1,2,[1,2,2,1])
 layer3 = stack2line(layer2,3)
-alpha_1 = 0.980338
-threshhold_1 = 0.61
-layer3_b = add_2_binary_op(layer3,threshhold_1)
-#layer3_b,alpha_1 = add_2_binary(layer3,20)
-layer4 = add_full_layer(layer3_b,4,400,alpha_1,activation_function = tf.nn.relu)
+# alpha_1 = 0.980338
+# threshhold_1 = 0.61
+#layer3_b = add_2_binary_op(layer3,threshhold_1)
+layer3_t,alpha_1 = add_tenery(layer3,20)
+layer4 = add_full_layer(layer3_t,4,400,alpha_1,activation_function = tf.nn.relu)
 layer4_drop = tf.nn.dropout(layer4,keep_prob)
-alpha_2 = 3.26883
-threshhold_2 = 1.63
-layer4_b = add_2_binary_op(layer4_drop,threshhold_2)
-#layer4_b,alpha_2 = add_2_binary(layer4_drop,20)
-layer5 = add_full_layer(layer4_b,5,60,alpha_2,activation_function = tf.nn.relu)
+# alpha_2 = 3.26883
+# threshhold_2 = 1.63
+# layer4_b = add_2_binary_op(layer4_drop,threshhold_2)
+layer4_t,alpha_2 = add_tenery(layer4_drop,20)
+layer5 = add_full_layer(layer4_t,5,60,alpha_2,activation_function = tf.nn.relu)
 layer5_drop = tf.nn.dropout(layer5,keep_prob)
 y = add_full_layer(layer5_drop,6,10,activation_function =tf.nn.softmax)
 #########################################################
@@ -174,7 +191,7 @@ with tf.Session(config = tf.ConfigProto(log_device_placement = True)) as sess:
 	merge = tf.summary.merge_all()
 	writer = tf.summary.FileWriter('log/',sess.graph)
 	try:
-		save.restore(sess,'net_data/le_net_b9695/cnn_theta.ckpt')
+		save.restore(sess,'net_data/le_net_t9721/cnn_theta.ckpt')
 	except:
 		pass
 	for i in range(Train_steps):
